@@ -191,8 +191,7 @@ async def get_unogs_netflix_countries(title: str, imdb_id: str = None) -> set | 
                 return None
 
             data = resp.json()
-            print(f"uNoGS search response keys: {list(data.keys()) if isinstance(data, dict) else 'list'}")
-            print(f"uNoGS search raw (first 500 chars): {json.dumps(data)[:500]}")
+            print(f"uNoGS search raw (first 800 chars): {json.dumps(data)[:800]}")
 
             # Handle different response formats
             results = []
@@ -205,109 +204,155 @@ async def get_unogs_netflix_countries(title: str, imdb_id: str = None) -> set | 
                 print(f"uNoGS: No search results for '{title}'")
                 return None
 
-            # Step 2: Find the Netflix ID — try multiple field names
+            # Step 2: Check if search results already include country data
+            first_result = results[0] if isinstance(results[0], dict) else {}
+            print(f"uNoGS first result keys: {list(first_result.keys())}")
+            print(f"uNoGS first result: {json.dumps(first_result)[:500]}")
+
+            # Some versions of the API include country availability in search results
+            if "country_availability" in first_result or "countrylist" in first_result or "clist" in first_result:
+                country_str = (first_result.get("country_availability")
+                               or first_result.get("countrylist")
+                               or first_result.get("clist", ""))
+                if country_str:
+                    countries = set()
+                    # Could be comma-separated codes or comma-separated IDs
+                    for part in str(country_str).split(","):
+                        part = part.strip().upper()
+                        if len(part) == 2 and part in COUNTRIES:
+                            countries.add(part)
+                    if countries:
+                        print(f"uNoGS: Found {len(countries)} countries from search result: {countries}")
+                        return countries
+
+            # Step 3: Find Netflix ID
             netflix_id = None
             for item in results:
                 if not isinstance(item, dict):
                     continue
-                # Log the first result to understand the format
-                if netflix_id is None:
-                    print(f"uNoGS first result keys: {list(item.keys())}")
-                    print(f"uNoGS first result (first 300 chars): {json.dumps(item)[:300]}")
-
-                # Try to match by IMDB ID first
                 item_imdb = item.get("imdbid") or item.get("imdb_id") or item.get("imdbID", "")
                 if imdb_id and item_imdb == imdb_id:
                     netflix_id = (item.get("nfid") or item.get("netflix_id")
                                   or item.get("netflixid") or item.get("id"))
-                    print(f"uNoGS: IMDB match found, netflix_id={netflix_id}")
+                    print(f"uNoGS: IMDB match, netflix_id={netflix_id}")
                     break
 
-            # Fallback to first result
             if not netflix_id and results and isinstance(results[0], dict):
                 first = results[0]
                 netflix_id = (first.get("nfid") or first.get("netflix_id")
                               or first.get("netflixid") or first.get("id"))
-                print(f"uNoGS: Using first result, netflix_id={netflix_id}")
+                print(f"uNoGS: Fallback to first result, netflix_id={netflix_id}")
 
             if not netflix_id:
                 print("uNoGS: Could not find netflix_id")
                 return None
 
-            # Step 3: Get countries for this Netflix title
-            # Try multiple endpoint formats
+            # Step 4: Try ALL possible endpoints for country data
             country_endpoints = [
                 (f"{UNOGS_BASE}/title/countries", {"netflix_id": str(netflix_id)}),
                 (f"{UNOGS_BASE}/title/countries", {"netflixid": str(netflix_id)}),
                 (f"{UNOGS_BASE}/titlecountries", {"netflix_id": str(netflix_id)}),
+                (f"{UNOGS_BASE}/titlecountries", {"netflixid": str(netflix_id)}),
+                (f"{UNOGS_BASE}/countries", {"netflix_id": str(netflix_id)}),
+                (f"{UNOGS_BASE}/title", {"netflix_id": str(netflix_id)}),
+                (f"{UNOGS_BASE}/title/detail", {"netflix_id": str(netflix_id)}),
             ]
 
-            country_data = None
             for url, params in country_endpoints:
-                country_resp = await client.get(url, params=params, headers=headers)
-                print(f"uNoGS countries [{url.split('/')[-1]}] status: {country_resp.status_code}")
+                try:
+                    country_resp = await client.get(url, params=params, headers=headers)
+                    endpoint_name = url.replace(UNOGS_BASE, "")
+                    print(f"uNoGS [{endpoint_name}] status={country_resp.status_code}")
 
-                if country_resp.status_code == 200:
-                    country_data = country_resp.json()
-                    print(f"uNoGS countries raw (first 500 chars): {json.dumps(country_data)[:500]}")
-                    break
-                else:
-                    print(f"uNoGS countries error: {country_resp.text[:200]}")
+                    if country_resp.status_code == 200:
+                        country_data = country_resp.json()
+                        print(f"uNoGS [{endpoint_name}] response: {json.dumps(country_data)[:500]}")
 
-            if country_data is None:
-                print("uNoGS: All country endpoints failed")
-                return None
+                        # Try to extract countries from whatever format we get
+                        countries = extract_countries_from_unogs(country_data)
+                        if countries:
+                            print(f"uNoGS: Found {len(countries)} countries: {countries}")
+                            return countries
+                    elif country_resp.status_code != 404:
+                        print(f"uNoGS [{endpoint_name}] error: {country_resp.text[:200]}")
+                except Exception as ep_error:
+                    print(f"uNoGS endpoint error: {ep_error}")
+                    continue
 
-            # Step 4: Extract country codes — handle multiple formats
-            countries = set()
-
-            # Could be a list directly, or nested in results/countries
-            items = []
-            if isinstance(country_data, list):
-                items = country_data
-            elif isinstance(country_data, dict):
-                items = (country_data.get("results", [])
-                         or country_data.get("countries", [])
-                         or country_data.get("items", []))
-                # Sometimes the data is in the values directly
-                if not items and any(k for k in country_data.keys() if len(k) == 2):
-                    # Keys might be country codes directly
-                    for k in country_data:
-                        if len(k) == 2 and k.upper() in COUNTRIES:
-                            countries.add(k.upper())
-                    if countries:
-                        print(f"uNoGS: Found {len(countries)} countries from dict keys: {countries}")
-                        return countries
-
-            for item in items:
-                if isinstance(item, dict):
-                    # Try every possible field name
-                    cc = (item.get("country_code") or item.get("cc")
-                          or item.get("countrycode") or item.get("country")
-                          or item.get("shortCode") or item.get("code", ""))
-                    if isinstance(cc, str) and len(cc) == 2:
-                        cc = cc.upper()
-                        if cc in COUNTRIES:
-                            countries.add(cc)
-                    # Also check for numeric country IDs
-                    country_id = item.get("id") or item.get("country_id")
-                    if country_id and not cc:
-                        # Reverse lookup from UNOGS_COUNTRY_IDS
-                        for code, uid in UNOGS_COUNTRY_IDS.items():
-                            if uid == country_id:
-                                countries.add(code)
-                                break
-                elif isinstance(item, str):
-                    cc = item.upper().strip()
-                    if len(cc) == 2 and cc in COUNTRIES:
-                        countries.add(cc)
-
-            print(f"uNoGS: Found {len(countries)} countries: {countries}")
-            return countries if countries else None
+            print("uNoGS: All country endpoints exhausted, no data found")
+            return None
 
     except Exception as e:
         print(f"uNoGS API error: {e}")
         return None
+
+
+def extract_countries_from_unogs(data) -> set:
+    """Try to extract country codes from any uNoGS response format."""
+    countries = set()
+
+    if isinstance(data, list):
+        for item in data:
+            cc = extract_cc(item)
+            if cc:
+                countries.add(cc)
+
+    elif isinstance(data, dict):
+        # Check nested results/countries/items
+        for key in ["results", "countries", "items", "countrylist", "country_availability"]:
+            if key in data:
+                sub = data[key]
+                if isinstance(sub, list):
+                    for item in sub:
+                        cc = extract_cc(item)
+                        if cc:
+                            countries.add(cc)
+                elif isinstance(sub, str):
+                    # Comma-separated
+                    for part in sub.split(","):
+                        p = part.strip().upper()
+                        if len(p) == 2 and p in COUNTRIES:
+                            countries.add(p)
+                if countries:
+                    return countries
+
+        # Check if country data is embedded in a "title" or "detail" response
+        if "country" in data or "clist" in data:
+            cdata = data.get("country") or data.get("clist", "")
+            if isinstance(cdata, str):
+                for part in cdata.split(","):
+                    p = part.strip().upper()
+                    if len(p) == 2 and p in COUNTRIES:
+                        countries.add(p)
+
+        # Dict keys might be country codes
+        for k in data:
+            if len(k) == 2 and k.upper() in COUNTRIES:
+                countries.add(k.upper())
+
+    return countries
+
+
+def extract_cc(item) -> str | None:
+    """Extract a country code from a single item."""
+    if isinstance(item, str):
+        cc = item.upper().strip()
+        if len(cc) == 2 and cc in COUNTRIES:
+            return cc
+    elif isinstance(item, dict):
+        for field in ["country_code", "cc", "countrycode", "country", "shortCode", "code"]:
+            cc = item.get(field, "")
+            if isinstance(cc, str) and len(cc) == 2:
+                cc = cc.upper()
+                if cc in COUNTRIES:
+                    return cc
+        # Numeric ID lookup
+        cid = item.get("id") or item.get("country_id")
+        if cid:
+            for code, uid in UNOGS_COUNTRY_IDS.items():
+                if uid == cid:
+                    return code
+    return None
 
 
 # ─── OMDb Ratings ────────────────────────────────────────────────
