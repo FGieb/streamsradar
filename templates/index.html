@@ -20,6 +20,8 @@
             --rt-red: #fa320a;
             --success: #22c55e;
             --warning: #f59e0b;
+            --danger: #ef4444;
+            --conflict: #f59e0b;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -254,6 +256,22 @@
         .rating-badge.imdb .value { color: var(--imdb-yellow); }
         .rating-badge.rt .value { color: var(--rt-red); }
 
+        /* ─── Sources Banner ─────────────────── */
+        .sources-banner {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1.25rem;
+            background: var(--accent-dim);
+            border: 1px solid rgba(0, 212, 170, 0.3);
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            font-size: 0.85rem;
+            color: var(--accent);
+        }
+
+        .sources-banner .icon { font-size: 1.2rem; }
+
         /* ─── Provider Sections ──────────────── */
         .section-title {
             font-size: 1.2rem;
@@ -316,25 +334,132 @@
             gap: 0.4rem;
         }
 
+        /* ─── Country Tags with Confidence ───── */
         .country-tag {
             display: inline-flex;
             align-items: center;
             gap: 0.35rem;
             padding: 0.3rem 0.6rem;
-            background: var(--bg-card);
             border-radius: 6px;
             font-size: 0.8rem;
             border: 1px solid var(--border);
             transition: all 0.15s;
-        }
-
-        .country-tag:hover {
-            border-color: var(--accent);
-            background: var(--accent-dim);
+            cursor: default;
+            position: relative;
         }
 
         .country-tag .flag {
             font-size: 1rem;
+        }
+
+        .country-tag.confidence-high {
+            background: rgba(34, 197, 94, 0.1);
+            border-color: rgba(34, 197, 94, 0.3);
+        }
+
+        .country-tag.confidence-medium {
+            background: var(--bg-card);
+            border-color: var(--border);
+        }
+
+        .country-tag.confidence-low {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.3);
+            opacity: 0.7;
+        }
+
+        .country-tag.confidence-conflict {
+            background: rgba(245, 158, 11, 0.1);
+            border-color: rgba(245, 158, 11, 0.4);
+        }
+
+        .confidence-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 2px;
+        }
+
+        .confidence-dot.high { background: var(--success); }
+        .confidence-dot.medium { background: var(--text-muted); }
+        .confidence-dot.low { background: var(--danger); }
+        .confidence-dot.conflict { background: var(--conflict); }
+
+        /* ─── Tooltip ────────────────────────── */
+        .country-tag .tooltip {
+            display: none;
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.75rem;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            z-index: 100;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            color: var(--text-primary);
+        }
+
+        .country-tag:hover .tooltip {
+            display: block;
+        }
+
+        .tooltip-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .tooltip-row:last-child { margin-bottom: 0; }
+
+        .tooltip-source {
+            color: var(--text-secondary);
+            min-width: 120px;
+        }
+
+        .tooltip-check { color: var(--success); }
+        .tooltip-cross { color: var(--danger); }
+        .tooltip-unknown { color: var(--text-muted); }
+
+        .tooltip-score {
+            font-weight: 800;
+            margin-top: 0.4rem;
+            padding-top: 0.4rem;
+            border-top: 1px solid var(--border);
+        }
+
+        /* ─── Vote Buttons ───────────────────── */
+        .vote-buttons {
+            display: inline-flex;
+            gap: 0.25rem;
+            margin-left: 0.25rem;
+        }
+
+        .vote-btn {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 0.1rem 0.3rem;
+            font-size: 0.65rem;
+            cursor: pointer;
+            transition: all 0.15s;
+            color: var(--text-muted);
+        }
+
+        .vote-btn:hover {
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+
+        .vote-btn.voted {
+            background: var(--accent-dim);
+            border-color: var(--accent);
+            color: var(--accent);
         }
 
         /* ─── Not Available ──────────────────── */
@@ -359,6 +484,54 @@
         /* ─── Rent/Buy Section ───────────────── */
         .rent-buy-section {
             margin-top: 2rem;
+        }
+
+        /* ─── Legend ─────────────────────────── */
+        .confidence-legend {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            padding: 0.75rem 1.25rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        /* ─── Summary stats ──────────────────── */
+        .availability-summary {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .summary-stat {
+            padding: 0.75rem 1.25rem;
+            background: var(--bg-card);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .summary-stat .number {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--accent);
+        }
+
+        .summary-stat .label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
         }
 
         /* ─── Loading ────────────────────────── */
@@ -402,34 +575,6 @@
             .ratings-row { justify-content: center; }
             header { flex-direction: column; gap: 0.5rem; }
         }
-
-        /* ─── Summary stats ──────────────────── */
-        .availability-summary {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-            flex-wrap: wrap;
-        }
-
-        .summary-stat {
-            padding: 0.75rem 1.25rem;
-            background: var(--bg-card);
-            border-radius: 8px;
-            border: 1px solid var(--border);
-            text-align: center;
-        }
-
-        .summary-stat .number {
-            font-size: 1.5rem;
-            font-weight: 800;
-            color: var(--accent);
-        }
-
-        .summary-stat .label {
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-        }
     </style>
 </head>
 <body>
@@ -461,9 +606,10 @@
     </div>
 
     <footer>
-        <p>StreamsRadar — Streaming availability data provided by
+        <p>StreamsRadar — Streaming availability data cross-referenced from
         <a href="https://www.justwatch.com/" target="_blank">JustWatch</a> via
-        <a href="https://www.themoviedb.org/" target="_blank">TMDB</a>.
+        <a href="https://www.themoviedb.org/" target="_blank">TMDB</a> and
+        <a href="https://www.movieofthenight.com/" target="_blank">Streaming Availability API</a>.
         Ratings from <a href="https://www.imdb.com/" target="_blank">IMDb</a> &
         <a href="https://www.rottentomatoes.com/" target="_blank">Rotten Tomatoes</a> via
         <a href="https://www.omdbapi.com/" target="_blank">OMDb</a>.</p>
@@ -484,7 +630,9 @@
         "US":"United States","VE":"Venezuela","ZA":"South Africa"
     };
 
-    // Search on Enter key
+    // Current detail context for voting
+    let currentDetail = null;
+
     document.getElementById('search-input').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') doSearch();
     });
@@ -526,19 +674,112 @@
         document.getElementById('detail-view').style.display = 'block';
 
         const content = document.getElementById('detail-content');
-        content.innerHTML = '<div class="loading"><div class="spinner"></div><br>Loading availability data for all countries...</div>';
+        content.innerHTML = '<div class="loading"><div class="spinner"></div><br>Cross-referencing availability across multiple sources...</div>';
 
         try {
             const resp = await fetch(`/api/details/${mediaType}/${tmdbId}`);
             const data = await resp.json();
+            currentDetail = data;
             content.innerHTML = renderDetail(data);
         } catch (err) {
             content.innerHTML = '<div class="loading">Error loading details. Check your API keys.</div>';
         }
     }
 
+    function renderConfidenceTooltip(conf) {
+        if (!conf) return '';
+
+        const tmdbIcon = conf.tmdb ? '✅' : '❌';
+        const tmdbClass = conf.tmdb ? 'tooltip-check' : 'tooltip-cross';
+
+        let saRow = '';
+        if (conf.streaming_availability !== null && conf.streaming_availability !== undefined) {
+            const saIcon = conf.streaming_availability ? '✅' : '❌';
+            const saClass = conf.streaming_availability ? 'tooltip-check' : 'tooltip-cross';
+            saRow = `<div class="tooltip-row">
+                <span class="tooltip-source">Streaming Availability:</span>
+                <span class="${saClass}">${saIcon}</span>
+            </div>`;
+        } else {
+            saRow = `<div class="tooltip-row">
+                <span class="tooltip-source">Streaming Availability:</span>
+                <span class="tooltip-unknown">—</span>
+            </div>`;
+        }
+
+        let communityRow = '';
+        const totalVotes = (conf.community_yes || 0) + (conf.community_no || 0);
+        if (totalVotes > 0) {
+            communityRow = `<div class="tooltip-row">
+                <span class="tooltip-source">Community:</span>
+                <span>${conf.community_yes}× ✅ / ${conf.community_no}× ❌</span>
+            </div>`;
+        } else {
+            communityRow = `<div class="tooltip-row">
+                <span class="tooltip-source">Community:</span>
+                <span class="tooltip-unknown">No reports yet</span>
+            </div>`;
+        }
+
+        const scoreColor = conf.score >= 80 ? 'var(--success)' :
+                           conf.score >= 50 ? 'var(--text-secondary)' :
+                           conf.level === 'conflict' ? 'var(--conflict)' : 'var(--danger)';
+
+        return `<div class="tooltip">
+            <div class="tooltip-row">
+                <span class="tooltip-source">TMDB (JustWatch):</span>
+                <span class="${tmdbClass}">${tmdbIcon}</span>
+            </div>
+            ${saRow}
+            ${communityRow}
+            <div class="tooltip-score" style="color: ${scoreColor}">
+                Confidence: ${conf.score}%
+                ${conf.level === 'conflict' ? ' ⚠️ SOURCES DISAGREE' : ''}
+            </div>
+        </div>`;
+    }
+
+    function renderCountryTag(country, providerName) {
+        const conf = country.confidence;
+        const level = conf ? conf.level : 'medium';
+        const score = conf ? conf.score : 50;
+
+        return `
+            <span class="country-tag confidence-${level}">
+                <span class="flag">${country.flag}</span>
+                ${country.name}
+                <span class="confidence-dot ${level}" title="Confidence: ${score}%"></span>
+                ${renderConfidenceTooltip(conf)}
+                <span class="vote-buttons">
+                    <button class="vote-btn" onclick="vote('${country.code}', '${providerName}', true, this); event.stopPropagation();" title="I can watch this here">✓</button>
+                    <button class="vote-btn" onclick="vote('${country.code}', '${providerName}', false, this); event.stopPropagation();" title="Not available for me">✗</button>
+                </span>
+            </span>`;
+    }
+
+    async function vote(country, provider, available, btn) {
+        try {
+            await fetch(`/api/vote?country=${country}&provider=${encodeURIComponent(provider)}&available=${available}`, {
+                method: 'POST'
+            });
+            btn.classList.add('voted');
+            btn.title = 'Vote recorded!';
+        } catch (e) {
+            console.error('Vote failed', e);
+        }
+    }
+
     function renderDetail(data) {
-        const { title, year, overview, poster, ratings, providers, total_countries_available, imdb_id } = data;
+        const { title, year, overview, poster, ratings, providers, total_countries_available, imdb_id, sources_used } = data;
+
+        // Sources banner
+        const sourcesList = sources_used.map(s => `<strong>${s}</strong>`).join(' + ');
+        const sourcesBanner = `
+            <div class="sources-banner">
+                <span class="icon">🔍</span>
+                Cross-referenced from ${sourcesList} + Community reports
+                (${sources_used.length} data source${sources_used.length > 1 ? 's' : ''})
+            </div>`;
 
         // Ratings HTML
         let ratingsHtml = '<div class="ratings-row">';
@@ -573,6 +814,17 @@
         }
         ratingsHtml += '</div>';
 
+        // Confidence legend
+        const legendHtml = `
+            <div class="confidence-legend">
+                <span style="color: var(--text-primary); font-weight: 600;">Confidence:</span>
+                <span class="legend-item"><span class="confidence-dot high"></span> High (sources agree)</span>
+                <span class="legend-item"><span class="confidence-dot medium"></span> Medium (single source)</span>
+                <span class="legend-item"><span class="confidence-dot conflict"></span> Conflict (sources disagree)</span>
+                <span class="legend-item"><span class="confidence-dot low"></span> Low (likely incorrect)</span>
+                <span style="color: var(--text-muted);">Hover for details · Click ✓/✗ to verify</span>
+            </div>`;
+
         // Summary stats
         const streamingPlatforms = Object.keys(providers.streaming).length;
         const totalStreamCountries = new Set();
@@ -604,11 +856,14 @@
             streamingHtml = '<h2 class="section-title">📡 Streaming (included in subscription)</h2>';
             for (const [name, info] of Object.entries(providers.streaming)) {
                 const totalCountries = Object.values(info.countries).flat().length;
+                const logoHtml = info.logo
+                    ? `<img class="provider-logo" src="${info.logo}" alt="${name}" onerror="this.style.display='none'">`
+                    : '';
+
                 streamingHtml += `
                     <div class="provider-card">
                         <div class="provider-header">
-                            <img class="provider-logo" src="${info.logo}" alt="${name}"
-                                 onerror="this.style.display='none'">
+                            ${logoHtml}
                             <div>
                                 <div class="provider-name">${name}</div>
                                 <div class="provider-count">Available in ${totalCountries} ${totalCountries === 1 ? 'country' : 'countries'}</div>
@@ -619,15 +874,16 @@
                     const label = accessType === 'flatrate' ? 'Subscription' :
                                   accessType === 'free' ? 'Free' :
                                   accessType === 'ads' ? 'Free with ads' : accessType;
+
+                    // Sort by confidence (highest first)
+                    const sorted = [...countries].sort((a, b) =>
+                        (b.confidence?.score || 50) - (a.confidence?.score || 50)
+                    );
+
                     streamingHtml += `
                         <div class="access-type-label">${label}</div>
                         <div class="country-grid">
-                            ${countries.map(c => `
-                                <span class="country-tag">
-                                    <span class="flag">${c.flag}</span>
-                                    ${c.name}
-                                </span>
-                            `).join('')}
+                            ${sorted.map(c => renderCountryTag(c, name)).join('')}
                         </div>`;
                 }
                 streamingHtml += '</div>';
@@ -641,7 +897,6 @@
         const rentBuyPlatforms = Object.keys(providers.rent_buy).length;
         if (rentBuyPlatforms > 0) {
             rentBuyHtml = '<div class="rent-buy-section"><h2 class="section-title">💳 Rent / Buy</h2>';
-            // Only show first 5, collapsed
             const entries = Object.entries(providers.rent_buy);
             const shown = entries.slice(0, 5);
             const hidden = entries.slice(5);
@@ -699,7 +954,9 @@
                     <p class="overview">${overview}</p>
                 </div>
             </div>
+            ${sourcesBanner}
             ${summaryHtml}
+            ${legendHtml}
             ${streamingHtml}
             ${notAvailableHtml}
             ${rentBuyHtml}
