@@ -209,21 +209,30 @@ async def get_unogs_netflix_countries(title: str, imdb_id: str = None) -> set | 
             print(f"uNoGS first result keys: {list(first_result.keys())}")
             print(f"uNoGS first result: {json.dumps(first_result)[:500]}")
 
-            # Some versions of the API include country availability in search results
-            if "country_availability" in first_result or "countrylist" in first_result or "clist" in first_result:
-                country_str = (first_result.get("country_availability")
-                               or first_result.get("countrylist")
-                               or first_result.get("clist", ""))
-                if country_str:
-                    countries = set()
-                    # Could be comma-separated codes or comma-separated IDs
-                    for part in str(country_str).split(","):
-                        part = part.strip().upper()
-                        if len(part) == 2 and part in COUNTRIES:
-                            countries.add(part)
-                    if countries:
-                        print(f"uNoGS: Found {len(countries)} countries from search result: {countries}")
-                        return countries
+            # The search results include country availability in the "clist" field
+            # Format: '"CA":"Canada","FR":"France","DE":"Germany",...'
+            # First, find the right result (match by IMDB ID)
+            matched_result = first_result
+            if imdb_id:
+                for item in results:
+                    if isinstance(item, dict):
+                        item_imdb = item.get("imdbid") or item.get("imdb_id") or item.get("imdbID", "")
+                        if item_imdb == imdb_id:
+                            matched_result = item
+                            break
+
+            clist = matched_result.get("clist") or matched_result.get("countrylist") or matched_result.get("country_availability", "")
+            if clist:
+                countries = set()
+                import re
+                # Extract 2-letter country codes from format like "CA":"Canada","FR":"France"
+                codes = re.findall(r'"([A-Z]{2})"\s*:', str(clist))
+                for cc in codes:
+                    if cc in COUNTRIES:
+                        countries.add(cc)
+                if countries:
+                    print(f"uNoGS: Found {len(countries)} countries from clist: {countries}")
+                    return countries
 
             # Step 3: Find Netflix ID
             netflix_id = None
