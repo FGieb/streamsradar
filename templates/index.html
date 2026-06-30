@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StreamsRadar — Find where to stream, anywhere in the world</title>
+    <style>
+        :root {
+            --bg-primary: #0f1923;
+            --bg-secondary: #1a2736;
+            --bg-card: #1e2d3d;
+            --bg-hover: #253849;
+            --accent: #00d4aa;
+            --accent-dim: rgba(0, 212, 170, 0.15);
+            --text-primary: #e8edf2;
+            --text-secondary: #8899aa;
+            --text-muted: #556677;
+            --border: #2a3a4a;
+            --imdb-yellow: #f5c518;
+            --rt-red: #fa320a;
+            --success: #22c55e;
+            --warning: #f59e0b;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* ─── Header ─────────────────────────── */
+        header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--accent);
+            letter-spacing: -0.5px;
+        }
+
+        .logo span {
+            color: var(--text-primary);
+        }
+
+        /* ─── Search ─────────────────────────── */
+        .search-container {
+            max-width: 700px;
+            margin: 3rem auto 2rem;
+            padding: 0 1.5rem;
+        }
+
+        .search-box {
+            display: flex;
+            background: var(--bg-secondary);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+
+        .search-box:focus-within {
+            border-color: var(--accent);
+        }
+
+        .search-box input {
+            flex: 1;
+            padding: 1rem 1.5rem;
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-size: 1.1rem;
+            outline: none;
+        }
+
+        .search-box input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .search-box button {
+            padding: 1rem 2rem;
+            background: var(--accent);
+            border: none;
+            color: var(--bg-primary);
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .search-box button:hover { opacity: 0.85; }
+
+        .tagline {
+            text-align: center;
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+            font-size: 1.05rem;
+        }
+
+        /* ─── Search Results ─────────────────── */
+        .search-results {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+        }
+
+        .search-result {
+            display: flex;
+            gap: 1rem;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            margin-bottom: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .search-result:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent);
+        }
+
+        .search-result img {
+            width: 50px;
+            height: 75px;
+            object-fit: cover;
+            border-radius: 6px;
+            background: var(--bg-card);
+        }
+
+        .search-result-info h3 {
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .search-result-info .meta {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .search-result-info .type-badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            background: var(--accent-dim);
+            color: var(--accent);
+        }
+
+        /* ─── Detail View ────────────────────── */
+        .detail-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 0 1.5rem 3rem;
+        }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--accent);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            cursor: pointer;
+            background: none;
+            border: none;
+        }
+
+        .back-btn:hover { text-decoration: underline; }
+
+        .detail-header {
+            display: flex;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .detail-poster {
+            width: 200px;
+            min-width: 200px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+        }
+
+        .detail-poster img {
+            width: 100%;
+            display: block;
+        }
+
+        .detail-info {
+            flex: 1;
+        }
+
+        .detail-info h1 {
+            font-size: 2rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .detail-info .year {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+        }
+
+        .detail-info .overview {
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+        }
+
+        /* ─── Ratings ────────────────────────── */
+        .ratings-row {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .rating-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.6rem 1rem;
+            background: var(--bg-card);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .rating-badge .label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .rating-badge .value {
+            font-size: 1.3rem;
+            font-weight: 800;
+        }
+
+        .rating-badge.imdb .value { color: var(--imdb-yellow); }
+        .rating-badge.rt .value { color: var(--rt-red); }
+
+        /* ─── Provider Sections ──────────────── */
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+
+        .provider-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+        }
+
+        .provider-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .provider-logo {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            object-fit: cover;
+        }
+
+        .provider-name {
+            font-weight: 700;
+            font-size: 1.05rem;
+        }
+
+        .provider-count {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .access-type-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            font-weight: 700;
+            color: var(--accent);
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .access-type-label:first-of-type {
+            margin-top: 0;
+        }
+
+        .country-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+        }
+
+        .country-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.3rem 0.6rem;
+            background: var(--bg-card);
+            border-radius: 6px;
+            font-size: 0.8rem;
+            border: 1px solid var(--border);
+            transition: all 0.15s;
+        }
+
+        .country-tag:hover {
+            border-color: var(--accent);
+            background: var(--accent-dim);
+        }
+
+        .country-tag .flag {
+            font-size: 1rem;
+        }
+
+        /* ─── Not Available ──────────────────── */
+        .not-available {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-top: 2rem;
+        }
+
+        .not-available h3 {
+            color: var(--text-secondary);
+            font-size: 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .not-available .country-tag {
+            opacity: 0.5;
+        }
+
+        /* ─── Rent/Buy Section ───────────────── */
+        .rent-buy-section {
+            margin-top: 2rem;
+        }
+
+        /* ─── Loading ────────────────────────── */
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 1rem;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ─── Footer ─────────────────────────── */
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            border-top: 1px solid var(--border);
+            margin-top: 3rem;
+        }
+
+        footer a {
+            color: var(--text-secondary);
+        }
+
+        /* ─── Responsive ─────────────────────── */
+        @media (max-width: 640px) {
+            .detail-header { flex-direction: column; align-items: center; text-align: center; }
+            .detail-poster { width: 160px; min-width: 160px; }
+            .ratings-row { justify-content: center; }
+            header { flex-direction: column; gap: 0.5rem; }
+        }
+
+        /* ─── Summary stats ──────────────────── */
+        .availability-summary {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .summary-stat {
+            padding: 0.75rem 1.25rem;
+            background: var(--bg-card);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .summary-stat .number {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--accent);
+        }
+
+        .summary-stat .label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">Streams<span>Radar</span></div>
+    </header>
+
+    <div id="app">
+        <!-- Search View (default) -->
+        <div id="search-view">
+            <div class="search-container">
+                <p class="tagline">Find where to stream any movie or series — across every country.</p>
+                <div class="search-box">
+                    <input type="text" id="search-input" placeholder="Search for a movie or series..."
+                           autofocus autocomplete="off">
+                    <button onclick="doSearch()">Search</button>
+                </div>
+            </div>
+            <div class="search-results" id="search-results"></div>
+        </div>
+
+        <!-- Detail View (hidden initially) -->
+        <div id="detail-view" style="display: none;">
+            <div class="detail-container">
+                <button class="back-btn" onclick="showSearch()">← Back to search</button>
+                <div id="detail-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>StreamsRadar — Streaming availability data provided by
+        <a href="https://www.justwatch.com/" target="_blank">JustWatch</a> via
+        <a href="https://www.themoviedb.org/" target="_blank">TMDB</a>.
+        Ratings from <a href="https://www.imdb.com/" target="_blank">IMDb</a> &
+        <a href="https://www.rottentomatoes.com/" target="_blank">Rotten Tomatoes</a> via
+        <a href="https://www.omdbapi.com/" target="_blank">OMDb</a>.</p>
+    </footer>
+
+    <script>
+    const ALL_COUNTRIES = {
+        "AR":"Argentina","AT":"Austria","AU":"Australia","BE":"Belgium","BR":"Brazil",
+        "CA":"Canada","CH":"Switzerland","CL":"Chile","CO":"Colombia","CZ":"Czechia",
+        "DE":"Germany","DK":"Denmark","EC":"Ecuador","EE":"Estonia","ES":"Spain",
+        "FI":"Finland","FR":"France","GB":"United Kingdom","GR":"Greece","HK":"Hong Kong",
+        "HR":"Croatia","HU":"Hungary","ID":"Indonesia","IE":"Ireland","IL":"Israel",
+        "IN":"India","IT":"Italy","JP":"Japan","KR":"South Korea","LT":"Lithuania",
+        "LV":"Latvia","MX":"Mexico","MY":"Malaysia","NL":"Netherlands","NO":"Norway",
+        "NZ":"New Zealand","PE":"Peru","PH":"Philippines","PL":"Poland","PT":"Portugal",
+        "RO":"Romania","RS":"Serbia","RU":"Russia","SA":"Saudi Arabia","SE":"Sweden",
+        "SG":"Singapore","SK":"Slovakia","TH":"Thailand","TR":"Turkey","TW":"Taiwan",
+        "US":"United States","VE":"Venezuela","ZA":"South Africa"
+    };
+
+    // Search on Enter key
+    document.getElementById('search-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') doSearch();
+    });
+
+    async function doSearch() {
+        const query = document.getElementById('search-input').value.trim();
+        if (!query) return;
+
+        const resultsDiv = document.getElementById('search-results');
+        resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div><br>Searching...</div>';
+
+        try {
+            const resp = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+            const results = await resp.json();
+
+            if (results.length === 0) {
+                resultsDiv.innerHTML = '<div class="loading">No results found. Try a different search term.</div>';
+                return;
+            }
+
+            resultsDiv.innerHTML = results.map(r => `
+                <div class="search-result" onclick="showDetails('${r.media_type}', ${r.id})">
+                    <img src="${r.poster || ''}" alt=""
+                         onerror="this.style.display='none'">
+                    <div class="search-result-info">
+                        <h3>${r.title} ${r.year ? '(' + r.year + ')' : ''}</h3>
+                        <span class="type-badge">${r.media_type === 'tv' ? '📺 TV Series' : '🎬 Movie'}</span>
+                        <p class="meta">${r.overview || ''}</p>
+                    </div>
+                </div>
+            `).join('');
+        } catch (err) {
+            resultsDiv.innerHTML = '<div class="loading">Error searching. Check your API keys in .env</div>';
+        }
+    }
+
+    async function showDetails(mediaType, tmdbId) {
+        document.getElementById('search-view').style.display = 'none';
+        document.getElementById('detail-view').style.display = 'block';
+
+        const content = document.getElementById('detail-content');
+        content.innerHTML = '<div class="loading"><div class="spinner"></div><br>Loading availability data for all countries...</div>';
+
+        try {
+            const resp = await fetch(`/api/details/${mediaType}/${tmdbId}`);
+            const data = await resp.json();
+            content.innerHTML = renderDetail(data);
+        } catch (err) {
+            content.innerHTML = '<div class="loading">Error loading details. Check your API keys.</div>';
+        }
+    }
+
+    function renderDetail(data) {
+        const { title, year, overview, poster, ratings, providers, total_countries_available, imdb_id } = data;
+
+        // Ratings HTML
+        let ratingsHtml = '<div class="ratings-row">';
+        if (ratings.imdb_rating && ratings.imdb_rating !== 'N/A') {
+            ratingsHtml += `
+                <div class="rating-badge imdb">
+                    <div>
+                        <div class="label">IMDb</div>
+                        <div class="value">⭐ ${ratings.imdb_rating}/10</div>
+                    </div>
+                </div>`;
+        }
+        if (ratings.rotten_tomatoes) {
+            const rtScore = parseInt(ratings.rotten_tomatoes);
+            const rtEmoji = rtScore >= 60 ? '🍅' : '🤢';
+            ratingsHtml += `
+                <div class="rating-badge rt">
+                    <div>
+                        <div class="label">Rotten Tomatoes</div>
+                        <div class="value">${rtEmoji} ${ratings.rotten_tomatoes}</div>
+                    </div>
+                </div>`;
+        }
+        if (ratings.metacritic) {
+            ratingsHtml += `
+                <div class="rating-badge">
+                    <div>
+                        <div class="label">Metacritic</div>
+                        <div class="value">${ratings.metacritic}</div>
+                    </div>
+                </div>`;
+        }
+        ratingsHtml += '</div>';
+
+        // Summary stats
+        const streamingPlatforms = Object.keys(providers.streaming).length;
+        const totalStreamCountries = new Set();
+        Object.values(providers.streaming).forEach(p => {
+            Object.values(p.countries).forEach(countries => {
+                countries.forEach(c => totalStreamCountries.add(c.code));
+            });
+        });
+
+        let summaryHtml = `
+            <div class="availability-summary">
+                <div class="summary-stat">
+                    <div class="number">${streamingPlatforms}</div>
+                    <div class="label">Streaming platforms</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="number">${totalStreamCountries.size}</div>
+                    <div class="label">Countries (streaming)</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="number">${total_countries_available}</div>
+                    <div class="label">Countries (total incl. rent/buy)</div>
+                </div>
+            </div>`;
+
+        // Streaming providers
+        let streamingHtml = '';
+        if (streamingPlatforms > 0) {
+            streamingHtml = '<h2 class="section-title">📡 Streaming (included in subscription)</h2>';
+            for (const [name, info] of Object.entries(providers.streaming)) {
+                const totalCountries = Object.values(info.countries).flat().length;
+                streamingHtml += `
+                    <div class="provider-card">
+                        <div class="provider-header">
+                            <img class="provider-logo" src="${info.logo}" alt="${name}"
+                                 onerror="this.style.display='none'">
+                            <div>
+                                <div class="provider-name">${name}</div>
+                                <div class="provider-count">Available in ${totalCountries} ${totalCountries === 1 ? 'country' : 'countries'}</div>
+                            </div>
+                        </div>`;
+
+                for (const [accessType, countries] of Object.entries(info.countries)) {
+                    const label = accessType === 'flatrate' ? 'Subscription' :
+                                  accessType === 'free' ? 'Free' :
+                                  accessType === 'ads' ? 'Free with ads' : accessType;
+                    streamingHtml += `
+                        <div class="access-type-label">${label}</div>
+                        <div class="country-grid">
+                            ${countries.map(c => `
+                                <span class="country-tag">
+                                    <span class="flag">${c.flag}</span>
+                                    ${c.name}
+                                </span>
+                            `).join('')}
+                        </div>`;
+                }
+                streamingHtml += '</div>';
+            }
+        } else {
+            streamingHtml = '<h2 class="section-title">📡 Streaming</h2><div class="provider-card"><p style="color: var(--text-secondary)">Not available for streaming in any tracked country. Check rent/buy options below.</p></div>';
+        }
+
+        // Rent/Buy
+        let rentBuyHtml = '';
+        const rentBuyPlatforms = Object.keys(providers.rent_buy).length;
+        if (rentBuyPlatforms > 0) {
+            rentBuyHtml = '<div class="rent-buy-section"><h2 class="section-title">💳 Rent / Buy</h2>';
+            // Only show first 5, collapsed
+            const entries = Object.entries(providers.rent_buy);
+            const shown = entries.slice(0, 5);
+            const hidden = entries.slice(5);
+
+            for (const [name, info] of shown) {
+                rentBuyHtml += `<div class="provider-card"><div class="provider-header">
+                    <img class="provider-logo" src="${info.logo}" alt="${name}" onerror="this.style.display='none'">
+                    <div><div class="provider-name">${name}</div></div></div>`;
+                for (const [accessType, countries] of Object.entries(info.countries)) {
+                    rentBuyHtml += `
+                        <div class="access-type-label">${accessType}</div>
+                        <div class="country-grid">
+                            ${countries.map(c => `<span class="country-tag"><span class="flag">${c.flag}</span>${c.name}</span>`).join('')}
+                        </div>`;
+                }
+                rentBuyHtml += '</div>';
+            }
+            if (hidden.length > 0) {
+                rentBuyHtml += `<p style="color: var(--text-secondary); padding: 0.5rem;">... and ${hidden.length} more platforms</p>`;
+            }
+            rentBuyHtml += '</div>';
+        }
+
+        // Countries where NOT available for streaming
+        const availableCountries = totalStreamCountries;
+        const notAvailable = Object.entries(ALL_COUNTRIES)
+            .filter(([code]) => !availableCountries.has(code));
+
+        let notAvailableHtml = '';
+        if (notAvailable.length > 0 && streamingPlatforms > 0) {
+            notAvailableHtml = `
+                <div class="not-available">
+                    <h3>❌ Not available for streaming in:</h3>
+                    <div class="country-grid">
+                        ${notAvailable.map(([code, name]) => `
+                            <span class="country-tag">
+                                <span class="flag">${codeToFlag(code)}</span>
+                                ${name}
+                            </span>
+                        `).join('')}
+                    </div>
+                </div>`;
+        }
+
+        // IMDB link
+        const imdbLink = imdb_id ? `<a href="https://www.imdb.com/title/${imdb_id}/" target="_blank" style="color: var(--accent); font-size: 0.85rem;">View on IMDb ↗</a>` : '';
+
+        return `
+            <div class="detail-header">
+                ${poster ? `<div class="detail-poster"><img src="${poster}" alt="${title}"></div>` : ''}
+                <div class="detail-info">
+                    <h1>${title}</h1>
+                    <div class="year">${year} · ${data.media_type === 'tv' ? 'TV Series' : 'Movie'} ${imdbLink}</div>
+                    ${ratingsHtml}
+                    <p class="overview">${overview}</p>
+                </div>
+            </div>
+            ${summaryHtml}
+            ${streamingHtml}
+            ${notAvailableHtml}
+            ${rentBuyHtml}
+        `;
+    }
+
+    function codeToFlag(code) {
+        return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+    }
+
+    function showSearch() {
+        document.getElementById('search-view').style.display = 'block';
+        document.getElementById('detail-view').style.display = 'none';
+    }
+    </script>
+</body>
+</html>
