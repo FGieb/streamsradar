@@ -707,6 +707,21 @@
             </div>`;
         }
 
+        let unogsRow = '';
+        if (conf.unogs !== null && conf.unogs !== undefined) {
+            const unogsIcon = conf.unogs ? '✅' : '❌';
+            const unogsClass = conf.unogs ? 'tooltip-check' : 'tooltip-cross';
+            unogsRow = `<div class="tooltip-row">
+                <span class="tooltip-source">uNoGS (Netflix direct):</span>
+                <span class="${unogsClass}">${unogsIcon}</span>
+            </div>`;
+        } else {
+            unogsRow = `<div class="tooltip-row">
+                <span class="tooltip-source">uNoGS (Netflix direct):</span>
+                <span class="tooltip-unknown">— (not Netflix)</span>
+            </div>`;
+        }
+
         let communityRow = '';
         const totalVotes = (conf.community_yes || 0) + (conf.community_no || 0);
         if (totalVotes > 0) {
@@ -731,6 +746,7 @@
                 <span class="${tmdbClass}">${tmdbIcon}</span>
             </div>
             ${saRow}
+            ${unogsRow}
             ${communityRow}
             <div class="tooltip-score" style="color: ${scoreColor}">
                 Confidence: ${conf.score}%

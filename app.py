@@ -23,6 +23,7 @@ TMDB_BASE = "https://api.themoviedb.org/3"
 OMDB_BASE = "https://www.omdbapi.com"
 TMDB_IMG = "https://image.tmdb.org/t/p"
 STREAMING_AVAIL_BASE = "https://streaming-availability.p.rapidapi.com"
+UNOGS_BASE = "https://unogsng.p.rapidapi.com"
 
 app = FastAPI(title="StreamsRadar")
 
@@ -48,8 +49,21 @@ COUNTRIES = {
     "VE": ("🇻🇪", "Venezuela"), "ZA": ("🇿🇦", "South Africa"),
 }
 
+# uNoGS country IDs mapping (uNoGS uses numeric IDs)
+UNOGS_COUNTRY_IDS = {
+    "AR": 21, "AU": 23, "BE": 26, "BR": 29, "CA": 33,
+    "CZ": 307, "FR": 45, "DE": 39, "GR": 327, "HK": 331,
+    "HU": 334, "IS": 265, "IN": 337, "IE": 270, "IL": 336,
+    "IT": 269, "JP": 267, "KR": 348, "LT": 357, "MX": 65,
+    "NL": 67, "NZ": 392, "PL": 392, "PT": 268, "RO": 400,
+    "SG": 408, "SK": 412, "ZA": 447, "ES": 270, "SE": 73,
+    "CH": 34, "TH": 425, "TR": 432, "GB": 46, "US": 78,
+    "CO": 36, "EE": 309, "FI": 310, "HR": 321, "ID": 338,
+    "LV": 354, "MY": 378, "NO": 379, "PE": 391, "PH": 390,
+    "RS": 401, "SA": 307, "TW": 429, "VE": 445,
+}
+
 # ─── Community verification store (in-memory for now, DB later) ──
-# Structure: { "tmdb_id:media_type:country:provider" -> {"yes": N, "no": N} }
 community_votes = {}
 
 
@@ -117,12 +131,10 @@ async def get_streaming_availability(imdb_id: str) -> dict:
                 },
             )
             if resp.status_code != 200:
+                print(f"Streaming Availability API returned {resp.status_code}")
                 return {}
 
             data = resp.json()
-
-            # Parse the response into a simple structure
-            # { "BE": {"Netflix": ["subscription"], "Disney+": ["subscription"]}, ... }
             result = {}
             streaming_options = data.get("streamingOptions", {})
 
@@ -145,6 +157,94 @@ async def get_streaming_availability(imdb_id: str) -> dict:
     except Exception as e:
         print(f"Streaming Availability API error: {e}")
         return {}
+
+
+# ─── uNoGS API (3rd source — Netflix-specific) ──────────────────
+
+async def get_unogs_netflix_countries(title: str, imdb_id: str = None) -> set:
+    """Get Netflix country availability from uNoGS (independent of JustWatch).
+    Returns: set of country codes where title is on Netflix, e.g. {"US", "GB", "NL"}
+    """
+    if not RAPID_API_KEY:
+        return set()
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            # Search by title on uNoGS
+            resp = await client.get(
+                f"{UNOGS_BASE}/search",
+                params={
+                    "query": title,
+                    "limit": "5",
+                },
+                headers={
+                    "X-RapidAPI-Key": RAPID_API_KEY,
+                    "X-RapidAPI-Host": "unogsng.p.rapidapi.com",
+                },
+            )
+
+            if resp.status_code != 200:
+                print(f"uNoGS search returned {resp.status_code}: {resp.text[:200]}")
+                return set()
+
+            data = resp.json()
+            results = data.get("results", [])
+
+            if not results:
+                return set()
+
+            # Find matching title — prefer IMDB ID match
+            netflix_id = None
+            for item in results:
+                if imdb_id and item.get("imdbid") == imdb_id:
+                    netflix_id = item.get("nfid") or item.get("netflix_id") or item.get("id")
+                    break
+
+            # Fallback to first result if no IMDB match
+            if not netflix_id and results:
+                netflix_id = results[0].get("nfid") or results[0].get("netflix_id") or results[0].get("id")
+
+            if not netflix_id:
+                return set()
+
+            # Get country availability for this Netflix title
+            country_resp = await client.get(
+                f"{UNOGS_BASE}/title/countries",
+                params={"netflix_id": netflix_id},
+                headers={
+                    "X-RapidAPI-Key": RAPID_API_KEY,
+                    "X-RapidAPI-Host": "unogsng.p.rapidapi.com",
+                },
+            )
+
+            if country_resp.status_code != 200:
+                print(f"uNoGS countries returned {country_resp.status_code}: {country_resp.text[:200]}")
+                return set()
+
+            country_data = country_resp.json()
+
+            # Extract country codes
+            countries = set()
+            # uNoGS returns country list in various formats depending on version
+            items = country_data if isinstance(country_data, list) else country_data.get("results", country_data.get("countries", []))
+
+            for item in items:
+                if isinstance(item, dict):
+                    # Could be {"country_code": "BE", ...} or {"cc": "BE", ...} or {"id": 26, ...}
+                    cc = item.get("country_code") or item.get("cc") or item.get("countrycode", "")
+                    cc = cc.upper().strip()
+                    if cc and cc in COUNTRIES:
+                        countries.add(cc)
+                elif isinstance(item, str):
+                    cc = item.upper().strip()
+                    if cc in COUNTRIES:
+                        countries.add(cc)
+
+            return countries
+
+    except Exception as e:
+        print(f"uNoGS API error: {e}")
+        return set()
 
 
 # ─── OMDb Ratings ────────────────────────────────────────────────
@@ -176,14 +276,12 @@ async def get_omdb_ratings(imdb_id: str) -> dict:
 
 def calculate_confidence(
     tmdb_says: bool,
-    sa_says: bool | None,  # None = no data from this source
+    sa_says: bool | None,       # None = no data from this source
+    unogs_says: bool | None,    # None = no data / not Netflix
     community_yes: int = 0,
     community_no: int = 0,
 ) -> dict:
-    """Calculate confidence score based on multiple sources.
-
-    Returns: { "score": 0-100, "level": "high"|"medium"|"low"|"conflict", "sources": {...} }
-    """
+    """Calculate confidence score based on multiple sources."""
     sources_agree = 0
     sources_disagree = 0
     sources_total = 0
@@ -197,6 +295,14 @@ def calculate_confidence(
     if sa_says is not None:
         sources_total += 1
         if sa_says:
+            sources_agree += 1
+        else:
+            sources_disagree += 1
+
+    # uNoGS source (Netflix-specific, independent)
+    if unogs_says is not None:
+        sources_total += 1
+        if unogs_says:
             sources_agree += 1
         else:
             sources_disagree += 1
@@ -216,7 +322,7 @@ def calculate_confidence(
     else:
         base_score = (sources_agree / sources_total) * 100
 
-        # Bonus for community verification
+        # Bonus for community verification with enough votes
         if total_votes >= 3:
             community_ratio = community_yes / total_votes
             base_score = base_score * 0.7 + community_ratio * 100 * 0.3
@@ -240,6 +346,7 @@ def calculate_confidence(
         "sources_agree": sources_agree,
         "tmdb": tmdb_says,
         "streaming_availability": sa_says,
+        "unogs": unogs_says,
         "community_yes": community_yes,
         "community_no": community_no,
     }
@@ -249,7 +356,6 @@ def calculate_confidence(
 
 def normalise_provider_name(name: str) -> str:
     """Normalise provider names for matching across sources."""
-    # Different APIs use slightly different names
     mappings = {
         "netflix": "Netflix",
         "amazon prime video": "Amazon Prime Video",
@@ -266,9 +372,15 @@ def normalise_provider_name(name: str) -> str:
     return mappings.get(name.lower().strip(), name)
 
 
+def is_netflix(name: str) -> bool:
+    """Check if a provider name is Netflix (any variant)."""
+    return "netflix" in name.lower()
+
+
 def organise_providers_with_confidence(
     tmdb_providers: dict,
     sa_data: dict,
+    unogs_countries: set,
 ) -> dict:
     """Organise provider data with confidence scoring from multiple sources."""
     platforms = {}
@@ -282,7 +394,6 @@ def organise_providers_with_confidence(
         for access_type in ["flatrate", "free", "ads"]:
             for provider in country_data.get(access_type, []):
                 pname = normalise_provider_name(provider["provider_name"])
-                raw_pname = provider["provider_name"]
 
                 if pname not in platforms:
                     platforms[pname] = {
@@ -293,16 +404,20 @@ def organise_providers_with_confidence(
                 if access_type not in platforms[pname]["countries"]:
                     platforms[pname]["countries"][access_type] = []
 
-                # Check if Streaming Availability API agrees
-                sa_confirms = None  # None = no data
+                # Check Streaming Availability API
+                sa_confirms = None
                 if sa_data:
                     sa_country = sa_data.get(country_code, {})
-                    # Check if any provider name in SA data matches
                     sa_confirms = False
                     for sa_provider_name in sa_country:
                         if normalise_provider_name(sa_provider_name) == pname:
                             sa_confirms = True
                             break
+
+                # Check uNoGS (only for Netflix providers)
+                unogs_confirms = None
+                if is_netflix(pname) and unogs_countries is not None:
+                    unogs_confirms = country_code in unogs_countries
 
                 # Get community votes
                 vote_key = f"{country_code}:{pname}"
@@ -311,6 +426,7 @@ def organise_providers_with_confidence(
                 confidence = calculate_confidence(
                     tmdb_says=True,
                     sa_says=sa_confirms,
+                    unogs_says=unogs_confirms,
                     community_yes=votes["yes"],
                     community_no=votes["no"],
                 )
@@ -332,7 +448,6 @@ def organise_providers_with_confidence(
             for sa_pname, access_types in sa_providers.items():
                 norm_name = normalise_provider_name(sa_pname)
 
-                # Check if this country+provider combo already exists from TMDB
                 already_listed = False
                 if norm_name in platforms:
                     for at, countries in platforms[norm_name]["countries"].items():
@@ -342,7 +457,6 @@ def organise_providers_with_confidence(
                                 break
 
                 if not already_listed and any(t in ["subscription", "free", "addon"] for t in access_types):
-                    # SA has it but TMDB doesn't — add with lower confidence
                     if norm_name not in platforms:
                         platforms[norm_name] = {
                             "logo": "",
@@ -353,12 +467,17 @@ def organise_providers_with_confidence(
                     if at not in platforms[norm_name]["countries"]:
                         platforms[norm_name]["countries"][at] = []
 
+                    unogs_confirms = None
+                    if is_netflix(norm_name) and unogs_countries is not None:
+                        unogs_confirms = country_code in unogs_countries
+
                     vote_key = f"{country_code}:{norm_name}"
                     votes = community_votes.get(vote_key, {"yes": 0, "no": 0})
 
                     confidence = calculate_confidence(
                         tmdb_says=False,
                         sa_says=True,
+                        unogs_says=unogs_confirms,
                         community_yes=votes["yes"],
                         community_no=votes["no"],
                     )
@@ -370,7 +489,7 @@ def organise_providers_with_confidence(
                         "confidence": confidence,
                     })
 
-    # Collect rent/buy (keep simple — no cross-referencing needed)
+    # Collect rent/buy
     rent_buy = {}
     for country_code, country_data in tmdb_providers.items():
         if country_code not in COUNTRIES:
@@ -429,37 +548,45 @@ async def api_search(q: str = Query(..., min_length=1)):
 @app.get("/api/details/{media_type}/{tmdb_id}")
 async def api_details(media_type: str, tmdb_id: int):
     """Get full details: providers by country + ratings, with confidence scoring."""
-    # Fetch TMDB details first to get IMDb ID
+    # Fetch TMDB details first to get IMDb ID and title
     details = await get_tmdb_details(tmdb_id, media_type)
 
-    # Get IMDb ID for OMDb + Streaming Availability lookups
     imdb_id = None
     if "external_ids" in details:
         imdb_id = details["external_ids"].get("imdb_id")
     elif "imdb_id" in details:
         imdb_id = details["imdb_id"]
 
-    # Fetch providers, ratings, and streaming availability in parallel
-    tmdb_providers_task = get_watch_providers(tmdb_id, media_type)
-    ratings_task = get_omdb_ratings(imdb_id) if imdb_id else asyncio.coroutine(lambda: {})()
-    sa_task = get_streaming_availability(imdb_id) if imdb_id else asyncio.coroutine(lambda: {})()
+    title = details.get("title") or details.get("name", "Unknown")
 
-    tmdb_providers, ratings, sa_data = await asyncio.gather(
-        tmdb_providers_task,
-        ratings_task,
-        sa_task,
+    # Fetch all data sources in parallel
+    async def safe_ratings():
+        return await get_omdb_ratings(imdb_id) if imdb_id else {}
+
+    async def safe_sa():
+        return await get_streaming_availability(imdb_id) if imdb_id else {}
+
+    async def safe_unogs():
+        return await get_unogs_netflix_countries(title, imdb_id)
+
+    tmdb_providers, ratings, sa_data, unogs_countries = await asyncio.gather(
+        get_watch_providers(tmdb_id, media_type),
+        safe_ratings(),
+        safe_sa(),
+        safe_unogs(),
     )
 
-    # Organise providers with confidence from both sources
-    providers = organise_providers_with_confidence(tmdb_providers, sa_data)
+    # Organise providers with confidence from all three sources
+    providers = organise_providers_with_confidence(tmdb_providers, sa_data, unogs_countries)
 
-    title = details.get("title") or details.get("name", "Unknown")
     year = (details.get("release_date") or details.get("first_air_date") or "")[:4]
 
     # Count sources used
     sources_used = ["TMDB"]
     if sa_data:
         sources_used.append("Streaming Availability")
+    if unogs_countries is not None:
+        sources_used.append("uNoGS (Netflix)")
 
     return {
         "title": title,
